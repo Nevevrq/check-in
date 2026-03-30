@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業級全功能考勤系統</title>
+    <style>
+        :root {
+            --primary: #4361ee; --success: #2ec4b6; --danger: #e71d36; --warning: #f72585;
+            --bg: #f8f9fa; --card-bg: #ffffff; --text: #2b2d42;
+        }
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: var(--text);
+        }
+        nav {
+            width: 95%; max-width: 800px; background: rgba(255, 255, 255, 0.95);
+            margin: 15px 0; padding: 10px 20px; border-radius: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); backdrop-filter: blur(5px);
+            position: sticky; top: 10px; z-index: 100;
+        }
+        .container { width: 95%; max-width: 500px; margin-bottom: 30px; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        
+        /* 類型切換 */
+        .type-selector { display: flex; gap: 10px; margin-bottom: 20px; background: #f0f2f5; padding: 5px; border-radius: 12px; }
+        .type-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; background: transparent; font-weight: bold; transition: 0.3s; }
+        .type-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e0e0e0; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
+        button { cursor: pointer; border: none; border-radius: 12px; font-weight: 600; padding: 15px; transition: all 0.2s; margin-bottom: 10px; width: 100%; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: #f0f2f5; color: #555; font-size: 14px; padding: 8px 15px; width: auto; }
+        
+        /* 報表狀態標籤 */
+        .status-tag { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; }
+        .late, .early { background: #fff5f5; color: var(--danger); border: 1px solid var(--danger); }
+        .normal { background: #e6fffa; color: #234e52; }
+
+        .table-container { background: white; border-radius: 15px; overflow-x: auto; width: 95%; max-width: 1000px; margin-top: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; min-width: 750px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        
+        #msg { margin-top: 15px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <h2 style="margin:0; color:var(--primary); font-size: 1.1rem;">🏢 智慧考勤系統 Pro</h2>
+        <div>
+            <button class="btn-outline" onclick="showView('staff')">打卡</button>
+            <button class="btn-outline" onclick="showView('admin')">管理</button>
+        </div>
+    </nav>
+
+    <div class="container" id="staff-view">
+        <div class="card">
+            <h3 style="margin-top:0">員工行動打卡</h3>
+            
+            <div class="type-selector">
+                <button id="btn-office" class="type-btn active" onclick="setJobType('內業')">內業班</button>
+                <button id="btn-field" class="type-btn" onclick="setJobType('外業班')">外業班</button>
+            </div>
+
+            <div id="rule-info" style="font-size: 12px; color: #666; background: #f8f9ff; padding: 10px; border-radius: 10px; margin-bottom: 15px; line-height: 1.6;">
+                <b>內業規則：</b> 08:30 上班 / 17:30 下班<br>
+                (上班寬限 10 分鐘，下班早於 17:30 記早退)
+            </div>
+
+            <input type="text" id="staff-name" placeholder="請輸入您的姓名">
+            <button class="btn-success" onclick="doClock('上班')">☀️ 上班打卡</button>
+            <button class="btn-danger" onclick="doClock('下班')">🌙 下班打卡</button>
+            <div id="msg" style="color:#888;">等待操作...</div>
+        </div>
+    </div>
+
+    <div class="container" id="admin-login-view" style="display:none;">
+        <div class="card">
+            <h3>管理者登入</h3>
+            <input type="email" id="admin-email" placeholder="管理員帳號">
+            <input type="password" id="admin-pass" placeholder="密碼">
+            <button class="btn-success" style="background:var(--primary)" onclick="handleAdmin()">進入後台</button>
+        </div>
+    </div>
+
+    <div class="table-container" id="admin-dashboard" style="display:none;">
+        <div style="padding: 20px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0">📊 即時考勤紀錄</h3>
+            <button class="btn-outline" style="background:var(--primary); color:white" onclick="exportCSV()">匯出 CSV</button>
+        </div>
+        <table>
+            <thead>
+                <tr><th>姓名</th><th>班別</th><th>動作</th><th>打卡時間</th><th>系統判定</th><th>地圖</th></tr>
+            </thead>
+            <tbody id="log-body"></tbody>
+        </table>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Firebase 配置 (已套用您的配置)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCxjLtC9nUz2cbPsJEdacLcxbPybIGiAlc",
+            authDomain: "check-in-fd23a.firebaseapp.com",
+            projectId: "check-in-fd23a",
+            storageBucket: "check-in-fd23a.firebasestorage.app",
+            messagingSenderId: "629254184418",
+            appId: "1:629254184418:web:5d810a4611ef8b4a592dbb",
+            measurementId: "G-1YSQ4Y4H3L"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentJobType = "內業";
+        let isAdmin = false;
+
+        // 切換班別
+        window.setJobType = (type) => {
+            currentJobType = type;
+            document.getElementById('btn-office').classList.toggle('active', type === '內業');
+            document.getElementById('btn-field').classList.toggle('active', type === '外業班');
+            const ruleText = type === '內業' 
+                ? '<b>內業規則：</b> 08:30 上班 / 17:30 下班<br>(上班寬限 10 分鐘，下班早於 17:30 記早退)' 
+                : '<b>外業規則：</b> 07:45 上班 / 18:00 下班<br>(上班寬限 10 分鐘，下班早於 18:00 記早退)';
+            document.getElementById('rule-info').innerHTML = ruleText;
+        };
+
+        // 打卡核心邏輯
+        window.doClock = async (clockType) => {
+            const name = document.getElementById('staff-name').value;
+            if(!name) return alert("請輸入姓名");
+            document.getElementById('msg').innerText = "📡 定位中...";
+
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const now = new Date();
+                const totalMinutes = now.getHours() * 60 + now.getMinutes();
+                let status = "正常";
+
+                if (clockType === '上班') {
+                    // 內業 8:30(510m) + 寬限10 = 520m；外業 7:45(465m) + 寬限10 = 475m
+                    const limit = (currentJobType === '內業') ? 520 : 475;
+                    if (totalMinutes > limit) status = "遲到";
+                } else if (clockType === '下班') {
+                    // 內業 17:30(1050m)；外業 18:00(1080m)
+                    const limit = (currentJobType === '內業') ? 1050 : 1080;
+                    if (totalMinutes < limit) status = "早退";
+                }
+
+                try {
+                    await addDoc(collection(db, "attendance"), {
+                        name, jobType: currentJobType, clockType, status,
+                        time: now.toLocaleString('zh-TW', { hour12: false }),
+                        timestamp: now.getTime(),
+                        lat: pos.coords.latitude.toFixed(6),
+                        lng: pos.coords.longitude.toFixed(6)
+                    });
+                    document.getElementById('msg').innerText = `✅ [${clockType}] 打卡成功！判定：${status}`;
+                    document.getElementById('msg').style.color = (status === "正常") ? "var(--success)" : "var(--danger)";
+                } catch (e) { alert("上傳失敗"); }
+            }, () => alert("GPS 定位失敗，請確認已授權瀏覽器位置權限。"), { enableHighAccuracy: true });
+        };
+
+        // 管理員邏輯
+        onAuthStateChanged(auth, (user) => { if(user) { isAdmin = true; showView('admin'); } });
+        window.handleAdmin = async () => {
+            const e = document.getElementById('admin-email').value;
+            const p = document.getElementById('admin-pass').value;
+            try { await signInWithEmailAndPassword(auth, e, p); } catch (e) { alert("登入失敗"); }
+        };
+
+        window.loadData = () => {
+            const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (snap) => {
+                document.getElementById('log-body').innerHTML = snap.docs.map(doc => {
+                    const d = doc.data();
+                    const statusClass = (d.status === '正常') ? 'normal' : (d.status === '遲到' ? 'late' : 'early');
+                    return `<tr>
+                        <td><b>${d.name}</b></td>
+                        <td>${d.jobType}</td>
+                        <td style="color:${d.clockType === '上班' ? 'orange' : 'blue'}">${d.clockType}</td>
+                        <td>${d.time}</td>
+                        <td><span class="status-tag ${statusClass}">${d.status}</span></td>
+                        <td><a href="https://www.google.com/maps?q=${d.lat},${d.lng}" target="_blank">📍 查看</a></td>
+                    </tr>`;
+                }).join('');
+            });
+        };
+
+        window.exportCSV = async () => {
+            const snap = await getDocs(collection(db, "attendance"));
+            let csv = "\uFEFF姓名,班別,類型,時間,狀態,經緯度\n";
+            snap.forEach(d => { const i = d.data(); csv += `"${i.name}","${i.jobType}","${i.clockType}","${i.time}","${i.status}",${i.lat},${i.lng}\n`; });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `考勤總報表_${new Date().toLocaleDateString()}.csv`;
+            a.click();
+        };
+
+        window.showView = (v) => {
+            document.getElementById('staff-view').style.display = v === 'staff' ? 'block' : 'none';
+            document.getElementById('admin-login-view').style.display = (v === 'admin' && !isAdmin) ? 'block' : 'none';
+            document.getElementById('admin-dashboard').style.display = (v === 'admin' && isAdmin) ? 'block' : 'none';
+            if(v === 'admin' && isAdmin) loadData();
+        };
+    </script>
+</body>
+</html>
